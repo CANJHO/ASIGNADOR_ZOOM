@@ -1,0 +1,20 @@
+# Python
+__pycache__/
+*.pyc
+
+# Entornos
+.venv/
+env/
+venv/
+
+# SO/IDE
+.DS_Store
+Thumbs.db
+.vscode/
+
+# Streamlit local
+.streamlit/
+
+# Datos locales
+*.xlsx
+*.xls
