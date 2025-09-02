@@ -8,12 +8,14 @@ import streamlit as st
 import streamlit as st
 
 st.set_page_config(page_title="Asignador UAI", layout="wide")
-st.title("VISITA TAMBIEN")
+
 
 url_moodle = "https://moodle-admision-kkvkzem6ls2m4f458ln4ut.streamlit.app/#exportador-de-admision-moodle"
 
 st.sidebar.markdown(
+    
     f"""
+    st.title("VISITA TAMBIEN")
     <a href="{url_moodle}" target="_blank" style="text-decoration:none;">
       <span style="
         display:inline-block;
