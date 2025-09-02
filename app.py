@@ -1,20 +1,3 @@
-st.sidebar.markdown(
-    """
-    <a href="https://moodle-admision-kkvkzem6ls2m4f458ln4ut.streamlit.app/#exportador-de-admision-moodle"
-       target="_blank" style="text-decoration:none;">
-      <span style="
-        display:inline-block;
-        padding:0.6rem 1rem;
-        background:#d32f2f;
-        color:#fff;
-        border-radius:8px;
-        font-weight:600;">
-        Admisión Moodle
-      </span>
-    </a>
-    """,
-    unsafe_allow_html=True
-)
 
 # app.py
 import io
