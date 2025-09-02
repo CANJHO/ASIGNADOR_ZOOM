@@ -15,7 +15,7 @@ url_moodle = "https://moodle-admision-kkvkzem6ls2m4f458ln4ut.streamlit.app/#expo
 st.sidebar.markdown(
     
     f"""
-    st.title("VISITA TAMBIEN")
+    "VISITA TAMBIEN"
     <a href="{url_moodle}" target="_blank" style="text-decoration:none;">
       <span style="
         display:inline-block;
