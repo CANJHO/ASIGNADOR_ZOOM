@@ -181,16 +181,31 @@ def construir_grupo(seccion, modalidad, local_code):
     return f"{letra}{mod} - {local_code}".strip()
 
 def format_dni(v):
+    """
+    Convierte a 8 dígitos (rellena ceros a la izquierda), ignorando puntos/guiones.
+    """
     s = norm_txt(v)
     if not s: return ""
     digits = "".join(ch for ch in s if ch.isdigit())
     if not digits: return ""
     return digits.zfill(8)
 
+def duracion_minutos(inicio_val, fin_val):
+    """
+    Devuelve minutos entre inicio y fin.
+    Si fin < inicio, asume cruce de medianoche (+24h).
+    """
+    ini = convertir_hora(inicio_val)
+    fin = convertir_hora(fin_val)
+    delta = (fin - ini).total_seconds() / 60
+    if delta < 0:
+        delta += 24*60
+    return int(round(delta))
+
 def construir_tema_zoom(row, custom_local_map):
     """
     {PLAN}-{COD_CURSO}-{CURSO}-{SECCION}-{ESCUELA_CODE}-{LOCAL_TXT}|{DNI}|{DIA_ACC} {HH:MM}-{HH:MM}-{DURACION}
-    (DNI va SIEMPRE en el medio, entre dos pipes)
+    (DNI va SIEMPRE en el medio, entre pipes)
     """
     plan = norm_txt(row.get("PLAN","")) or norm_txt(row.get("COD_PLAN",""))
     cod_curso = norm_txt(row.get("COD_CURSO",""))
@@ -203,20 +218,19 @@ def construir_tema_zoom(row, custom_local_map):
     local_code = local_to_code(local_raw, custom_local_map)
     local_txt = norm_upper(local_raw)
     if local_txt in LOCAL_TO_CODE_BASE or len(local_txt) <= 3:
-        local_txt = local_code_to_text(local_code)  # IC -> FILIAL, CH -> PRINCIPAL, etc.
+        local_txt = local_code_to_text(local_code)  # IC -> FILIAL, etc.
 
     dni = format_dni(row.get("DNI_DOC",""))
 
     n = parse_dia_to_num(row.get("DIA",""))
-    dia_acc = dia_num_to_full_acc(n) if n else ""   # con tilde para público
+    dia_acc = dia_num_to_full_acc(n) if n else ""
 
     hi = hora_hhmm(row.get("HORA INICIO",""))
     hf = hora_hhmm(row.get("HORA FIN",""))
-    dur = norm_txt(row.get("DURACION",""))
+    dur = str(duracion_minutos(row.get("HORA INICIO",""), row.get("HORA FIN","")))
 
     left = "-".join([p for p in [plan, cod_curso, curso, seccion, escuela_code, local_txt] if p!=""])
     right = f"{dia_acc} {hi}-{hf}-{dur}".strip()
-
     return f"{left}|{dni}|{right}"
 
 # ==============================
@@ -282,6 +296,8 @@ def convertir_a_excel_export(df, custom_local_map):
     - ESCUELA -> nombre completo
     - MODALIDAD -> V/P
     - LOCAL -> código (IC/CH/SU/HU/…)
+    - DNI_DOC -> string de 8 dígitos
+    - DURACION -> minutos (autogenerado)
     - + GRUPO, RANGO HORARIO, TEMA_ZOOM, DETALLE HORARIO
     """
     out = df.copy()
@@ -308,6 +324,10 @@ def convertir_a_excel_export(df, custom_local_map):
     if "LOCAL" in out.columns:
         out["LOCAL"] = out["LOCAL"].apply(lambda v: local_to_code(v, custom_local_map))
 
+    # DNI normalizado a 8 dígitos (texto)
+    if "DNI_DOC" in out.columns:
+        out["DNI_DOC"] = out["DNI_DOC"].apply(format_dni)
+
     # GRUPO
     out["GRUPO"] = out.apply(
         lambda r: construir_grupo(r.get("SECCION",""), r.get("MODALIDAD",""), r.get("LOCAL","")),
@@ -320,7 +340,13 @@ def convertir_a_excel_export(df, custom_local_map):
         axis=1
     )
 
-    # TEMA_ZOOM (DNI al medio)
+    # DURACION (minutos) AUTOGENERADO
+    out["DURACION"] = out.apply(
+        lambda r: duracion_minutos(r.get("HORA INICIO",""), r.get("HORA FIN","")),
+        axis=1
+    )
+
+    # TEMA_ZOOM (usa DURACION calculada internamente)
     out["TEMA_ZOOM"] = out.apply(lambda r: construir_tema_zoom(r, custom_local_map), axis=1)
 
     # DETALLE HORARIO (con tildes)
@@ -372,11 +398,11 @@ st.download_button("📄 Descargar plantilla mínima", data=buf_min.getvalue(),
 plantilla_full_cols = [
     "DOCENTE","DIA","HORA INICIO","HORA FIN",
     "FACULTAD","ESCUELA","COD_PLAN","COD_CURSO","SECCION","CURSO",
-    "MODALIDAD","LOCAL","DNI_DOC","DURACION",
-    "GRUPO","TEMA_ZOOM","Zoom asignado","DIA_NUM","RANGO HORARIO","DETALLE HORARIO"
+    "MODALIDAD","LOCAL","DNI_DOC",
+    "DURACION","GRUPO","TEMA_ZOOM","Zoom asignado","DIA_NUM","RANGO HORARIO","DETALLE HORARIO"
 ]
 fila_demo = {c:"" for c in plantilla_full_cols}
-for c in ["GRUPO","TEMA_ZOOM","Zoom asignado","DIA_NUM","RANGO HORARIO","DETALLE HORARIO"]:
+for c in ["DURACION","GRUPO","TEMA_ZOOM","Zoom asignado","DIA_NUM","RANGO HORARIO","DETALLE HORARIO"]:
     fila_demo[c] = "AUTOGENERADO (no editar)"
 plantilla_full = pd.DataFrame([fila_demo], columns=plantilla_full_cols)
 
@@ -422,7 +448,7 @@ if archivo is not None and st.button("🚀 Asignar Zoom y Descargar"):
     # Asignación
     df_asig = asignar_zoom(df, margen_minutos, max_reuniones, prefijo_correo)
 
-    # Export transform
+    # Export transform (DNI padded, DURACION autogenerada, etc.)
     df_export = convertir_a_excel_export(df_asig, custom_local_map)
 
     # Resumen
@@ -430,7 +456,7 @@ if archivo is not None and st.button("🚀 Asignar Zoom y Descargar"):
 
     # Mostrar
     st.success("✅ Procesamiento completado")
-    st.subheader("👩‍🏫 Horarios (con GRUPO y TEMA_ZOOM)")
+    st.subheader("👩‍🏫 Horarios (con GRUPO, DURACION y TEMA_ZOOM)")
     st.dataframe(df_export, use_container_width=True)
 
     st.subheader("📊 Resumen por día")
@@ -445,3 +471,4 @@ if archivo is not None and st.button("🚀 Asignar Zoom y Descargar"):
                        data=out.getvalue(),
                        file_name="horario_con_zoom.xlsx",
                        mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
