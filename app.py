@@ -204,34 +204,51 @@ def duracion_minutos(inicio_val, fin_val):
 
 def construir_tema_zoom(row, custom_local_map):
     """
-    {PLAN}-{COD_CURSO}-{CURSO}-{SECCION}-{ESCUELA_CODE}-{LOCAL_TXT}|{DNI}|{DIA_ACC} {HH:MM}-{HH:MM}-{DURACION}
-    (DNI va SIEMPRE en el medio, entre pipes)
+    Formato final:
+    {PLAN}-{COD_CURSO}-{CURSO}-{SECCION+MOD}-{LOCAL_CODE}-{ESCUELA_CODE}|{DNI}|{DIA_ACC} {HH:MM}-{HH:MM}-{DURACION}
+
+    - SECCION+MOD: letra de sección + V/P (ej. A + V -> AV)
+    - LOCAL_CODE: código (IC/CH/SU/HU o el que mapées)
+    - ESCUELA_CODE: AF/IS/...
+    - DNI siempre al medio con 8 dígitos (ceros a la izquierda)
+    - DÍA con tildes (SÁBADO, MIÉRCOLES, ...)
+    - DURACION calculada a partir de HORA INICIO/FIN
     """
     plan = norm_txt(row.get("PLAN","")) or norm_txt(row.get("COD_PLAN",""))
     cod_curso = norm_txt(row.get("COD_CURSO",""))
     curso = norm_txt(row.get("CURSO",""))
-    seccion = norm_txt(row.get("SECCION",""))
 
+    # Grupo compacto: letra de sección + V/P
+    sec_letter = seccion_letra(row.get("SECCION",""))
+    mod = normalizar_modalidad(row.get("MODALIDAD",""))
+    mod = "V" if mod in ("V","VIRTUAL") else ("P" if mod in ("P","PRESENCIAL") else "")
+    grupo_compacto = f"{sec_letter}{mod}".strip()
+
+    # Local como CÓDIGO
+    local_code = local_to_code(row.get("LOCAL",""), custom_local_map)
+
+    # Escuela como CÓDIGO
     escuela_code = escuela_to_code(row.get("ESCUELA",""))
 
-    local_raw = row.get("LOCAL","")
-    local_code = local_to_code(local_raw, custom_local_map)
-    local_txt = norm_upper(local_raw)
-    if local_txt in LOCAL_TO_CODE_BASE or len(local_txt) <= 3:
-        local_txt = local_code_to_text(local_code)  # IC -> FILIAL, etc.
-
+    # DNI (8 dígitos)
     dni = format_dni(row.get("DNI_DOC",""))
 
+    # Día con tildes
     n = parse_dia_to_num(row.get("DIA",""))
     dia_acc = dia_num_to_full_acc(n) if n else ""
 
+    # Horas y duración (calculada)
     hi = hora_hhmm(row.get("HORA INICIO",""))
     hf = hora_hhmm(row.get("HORA FIN",""))
     dur = str(duracion_minutos(row.get("HORA INICIO",""), row.get("HORA FIN","")))
 
-    left = "-".join([p for p in [plan, cod_curso, curso, seccion, escuela_code, local_txt] if p!=""])
+    # Ensamble
+    left_parts = [plan, cod_curso, curso, grupo_compacto, local_code, escuela_code]
+    left = "-".join([p for p in left_parts if p])
     right = f"{dia_acc} {hi}-{hf}-{dur}".strip()
+
     return f"{left}|{dni}|{right}"
+
 
 # ==============================
 # ASIGNACIÓN DE ZOOM (motor)
