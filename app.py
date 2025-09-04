@@ -9,10 +9,18 @@ import re
 # MAPEOS Y CONSTANTES
 # ==============================
 
-# Día: número -> nombre (con tilde) y sin tilde, y abreviatura
-DIA_NUM_TO_NAME_ACC = {1:"LUNES",2:"MARTES",3:"MIÉRCOLES",4:"JUEVES",5:"VIERNES",6:"SÁBADO",7:"DOMINGO"}
-DIA_NUM_TO_NAME_PLAIN = {1:"LUNES",2:"MARTES",3:"MIERCOLES",4:"JUEVES",5:"VIERNES",6:"SABADO",7:"DOMINGO"}
-DIA_NAME_PLAIN_TO_NUM = {"LUNES":1,"MARTES":2,"MIERCOLES":3,"JUEVES":4,"VIERNES":5,"SABADO":6,"DOMINGO":7}
+# Día
+DIA_NUM_TO_NAME_ACC = {
+    1: "LUNES", 2: "MARTES", 3: "MIÉRCOLES", 4: "JUEVES",
+    5: "VIERNES", 6: "SÁBADO", 7: "DOMINGO"
+}
+DIA_NUM_TO_NAME_PLAIN = {
+    1: "LUNES", 2: "MARTES", 3: "MIERCOLES", 4: "JUEVES",
+    5: "VIERNES", 6: "SABADO", 7: "DOMINGO"
+}
+DIA_NAME_PLAIN_TO_NUM = {
+    "LUNES":1,"MARTES":2,"MIERCOLES":3,"JUEVES":4,"VIERNES":5,"SABADO":6,"DOMINGO":7
+}
 DIA_NUM_TO_ABBR = {1:"LU",2:"MA",3:"MI",4:"JU",5:"VI",6:"SA",7:"DO"}
 
 # Facultad
@@ -43,7 +51,7 @@ ESCUELA_CODE_TO_FULL = {
 ESCUELA_FULL_TO_CODE = {v.upper():k for k,v in ESCUELA_CODE_TO_FULL.items()}
 ESCUELA_FULL_SET = set(ESCUELA_FULL_TO_CODE.keys())
 
-# Modalidad: varias entradas -> V/P
+# Modalidad -> V/P
 MODALIDAD_MAP = {"V":"V","VIRTUAL":"V","P":"P","PRESENCIAL":"P"}
 
 # Local base -> código y código -> texto estándar (para tema)
@@ -61,12 +69,11 @@ REQUERIDAS = ["DOCENTE","DIA","HORA INICIO","HORA FIN"]
 # UTILIDADES
 # ==============================
 
-def norm_txt(x): 
+def norm_txt(x):
     if pd.isna(x): return ""
     return str(x).strip()
 
-def norm_upper(x): 
-    return norm_txt(x).upper()
+def norm_upper(x): return norm_txt(x).upper()
 
 def convertir_hora(hora_raw):
     if pd.isna(hora_raw):
@@ -75,8 +82,7 @@ def convertir_hora(hora_raw):
         return datetime.combine(datetime.today().date(), hora_raw.time())
     if isinstance(hora_raw,dtime):
         return datetime.combine(datetime.today().date(), hora_raw)
-    s = str(hora_raw).strip().upper().replace(".",
-        ":").replace("H",":")
+    s = str(hora_raw).strip().upper().replace(".",":").replace("H",":")
     if s.isdigit():
         if len(s) in (1,2):  return datetime.strptime(f"{int(s):02d}:00","%H:%M")
         if len(s)==3:        s="0"+s
@@ -92,8 +98,7 @@ def convertir_hora(hora_raw):
     except: pass
     raise ValueError(f"Formato de hora no reconocido: {hora_raw}")
 
-def hora_hhmm(v): 
-    return convertir_hora(v).strftime("%H:%M")
+def hora_hhmm(v): return convertir_hora(v).strftime("%H:%M")
 
 def parse_dia_to_num(d):
     if pd.isna(d): return None
@@ -107,8 +112,8 @@ def parse_dia_to_num(d):
     s2 = s.replace("Á","A").replace("É","E").replace("Í","I").replace("Ó","O").replace("Ú","U")
     return DIA_NAME_PLAIN_TO_NUM.get(s2)
 
-def dia_num_to_abbr(n): return DIA_NUM_TO_ABBR.get(n,"")
-def dia_num_to_full_acc(n): return DIA_NUM_TO_NAME_ACC.get(n,"")
+def dia_num_to_abbr(n):       return DIA_NUM_TO_ABBR.get(n,"")
+def dia_num_to_full_acc(n):   return DIA_NUM_TO_NAME_ACC.get(n,"")
 def dia_num_to_full_plain(n): return DIA_NUM_TO_NAME_PLAIN.get(n,"")
 
 def normalizar_facultad(v):
@@ -125,7 +130,6 @@ def escuela_to_code(v):
     s=norm_upper(v)
     if s in ESCUELA_CODE_TO_FULL: return s
     if s in ESCUELA_FULL_SET:     return ESCUELA_FULL_TO_CODE[s]
-    # si no está mapeada, intenta extraer código de 2-3 letras
     m=re.match(r"[A-Z]{2,3}", s)
     return m.group(0) if m else s
 
@@ -154,8 +158,7 @@ def local_to_code(v, custom_map):
 
 def local_code_to_text(v):
     s=norm_upper(v)
-    if s in LOCAL_CODE_TO_TEXT_STD: return LOCAL_CODE_TO_TEXT_STD[s]
-    return s  # si no conocemos el código, dejamos como está
+    return LOCAL_CODE_TO_TEXT_STD.get(s, s)
 
 def seccion_letra(seccion):
     s=norm_upper(seccion)
@@ -178,10 +181,6 @@ def construir_grupo(seccion, modalidad, local_code):
     return f"{letra}{mod} - {local_code}".strip()
 
 def format_dni(v):
-    """
-    Conserva ceros a la izquierda. Si viene numérico, extrae dígitos y zfill(8).
-    Si ya viene string, extrae dígitos y zfill(8).
-    """
     s = norm_txt(v)
     if not s: return ""
     digits = "".join(ch for ch in s if ch.isdigit())
@@ -190,41 +189,34 @@ def format_dni(v):
 
 def construir_tema_zoom(row, custom_local_map):
     """
-    {PLAN}-{COD_CURSO}-{CURSO}-{SECCION}-{ESCUELA_CODE}-{LOCAL_TXT}|{DNI_DOC}|{DIA_PLAIN} {HH:MM}-{HH:MM}-{DURACION}
-    - ESCUELA_CODE: AF, IS, ... (si viene nombre, lo convertimos a código)
-    - LOCAL_TXT: si viene código (IC/CH/SU/HU) lo pasamos a texto estándar (FILIAL/PRINCIPAL/SUNAMPE/HUARUA).
-    - DNI va SIEMPRE en el medio, separado por '|'.
+    {PLAN}-{COD_CURSO}-{CURSO}-{SECCION}-{ESCUELA_CODE}-{LOCAL_TXT}|{DNI}|{DIA_ACC} {HH:MM}-{HH:MM}-{DURACION}
+    (DNI va SIEMPRE en el medio, entre dos pipes)
     """
     plan = norm_txt(row.get("PLAN","")) or norm_txt(row.get("COD_PLAN",""))
     cod_curso = norm_txt(row.get("COD_CURSO",""))
     curso = norm_txt(row.get("CURSO",""))
     seccion = norm_txt(row.get("SECCION",""))
 
-    # ESCUELA -> código (AF, IS, ...)
     escuela_code = escuela_to_code(row.get("ESCUELA",""))
 
-    # LOCAL texto (si vino código, traducimos a texto estándar)
     local_raw = row.get("LOCAL","")
     local_code = local_to_code(local_raw, custom_local_map)
     local_txt = norm_upper(local_raw)
     if local_txt in LOCAL_TO_CODE_BASE or len(local_txt) <= 3:
         local_txt = local_code_to_text(local_code)  # IC -> FILIAL, CH -> PRINCIPAL, etc.
 
-    # DNI con ceros a la izquierda
     dni = format_dni(row.get("DNI_DOC",""))
 
-    # Día sin tildes para el TEMA_ZOOM (como en tus ejemplos)
     n = parse_dia_to_num(row.get("DIA",""))
-    dia_plain = dia_num_to_full_plain(n) if n else ""
+    dia_acc = dia_num_to_full_acc(n) if n else ""   # con tilde para público
 
     hi = hora_hhmm(row.get("HORA INICIO",""))
     hf = hora_hhmm(row.get("HORA FIN",""))
     dur = norm_txt(row.get("DURACION",""))
 
-    left = "-".join([p for p in [plan, cod_curso, curso, seccion, escuela_code, local_txt] if p != ""])
-    right = f"{dia_plain} {hi}-{hf}-{dur}".strip()
+    left = "-".join([p for p in [plan, cod_curso, curso, seccion, escuela_code, local_txt] if p!=""])
+    right = f"{dia_acc} {hi}-{hf}-{dur}".strip()
 
-    # >>>>>>>>>>>>>>>>>> AQUÍ ESTÁ LA POSICIÓN CORRECTA DEL DNI <<<<<<<<<<<<<<<<<<
     return f"{left}|{dni}|{right}"
 
 # ==============================
@@ -246,8 +238,7 @@ def generar_correo_zoom(numero, prefijo):
 def asignar_zoom(df, margen_minutos, max_simult, prefijo_correo):
     df=df.copy()
     df['Zoom asignado']=None
-    zoom_usos={}
-    zoom_counter=1
+    zoom_usos={}; zoom_counter=1
     for idx,fila in df.iterrows():
         n=parse_dia_to_num(fila['DIA'])
         dia_key=dia_num_to_full_acc(n) if n else ""
@@ -280,13 +271,74 @@ def generar_resumen(df_asignado):
     return res
 
 # ==============================
+# TRANSFORMACIÓN DE EXPORTACIÓN
+# ==============================
+
+def convertir_a_excel_export(df, custom_local_map):
+    """
+    Devuelve un DF listo para exportar:
+    - DIA -> abreviatura (LU..DO)
+    - FACULTAD -> nombre completo
+    - ESCUELA -> nombre completo
+    - MODALIDAD -> V/P
+    - LOCAL -> código (IC/CH/SU/HU/…)
+    - + GRUPO, RANGO HORARIO, TEMA_ZOOM, DETALLE HORARIO
+    """
+    out = df.copy()
+
+    # DIA_NUM y DIA abreviado
+    out["DIA_NUM"] = out["DIA"].apply(parse_dia_to_num)
+    out["DIA"] = out["DIA_NUM"].apply(dia_num_to_abbr)
+
+    # FACULTAD
+    if "FACULTAD" in out.columns:
+        out["FACULTAD"] = out["FACULTAD"].apply(normalizar_facultad)
+
+    # ESCUELA (nombre completo)
+    if "ESCUELA" in out.columns:
+        out["ESCUELA"] = out["ESCUELA"].apply(escuela_to_full)
+
+    # MODALIDAD -> V/P
+    if "MODALIDAD" in out.columns:
+        out["MODALIDAD"] = out["MODALIDAD"].apply(normalizar_modalidad).map(
+            lambda x: "V" if x in ("V","VIRTUAL") else ("P" if x in ("P","PRESENCIAL") else x)
+        )
+
+    # LOCAL -> código
+    if "LOCAL" in out.columns:
+        out["LOCAL"] = out["LOCAL"].apply(lambda v: local_to_code(v, custom_local_map))
+
+    # GRUPO
+    out["GRUPO"] = out.apply(
+        lambda r: construir_grupo(r.get("SECCION",""), r.get("MODALIDAD",""), r.get("LOCAL","")),
+        axis=1
+    )
+
+    # RANGO HORARIO
+    out["RANGO HORARIO"] = out.apply(
+        lambda r: f"{hora_hhmm(r.get('HORA INICIO',''))}-{hora_hhmm(r.get('HORA FIN',''))}",
+        axis=1
+    )
+
+    # TEMA_ZOOM (DNI al medio)
+    out["TEMA_ZOOM"] = out.apply(lambda r: construir_tema_zoom(r, custom_local_map), axis=1)
+
+    # DETALLE HORARIO (con tildes)
+    out["DETALLE HORARIO"] = out.apply(
+        lambda r: f"{r.get('DIA_NUM','')} - {dia_num_to_full_acc(r.get('DIA_NUM'))} de - {r.get('RANGO HORARIO','')}",
+        axis=1
+    )
+
+    return out
+
+# ==============================
 # UI STREAMLIT
 # ==============================
 
 st.set_page_config(page_title="Asignador UAI", layout="wide")
 st.title("📅 Asignador de Licencias Zoom - UAI")
 
-# Sidebar: enlace y locales personalizados
+# Sidebar: enlace + locales personalizados
 st.sidebar.header("VISITA TAMBIÉN")
 url_moodle="https://moodle-admision-kkvkzem6ls2m4f458ln4ut.streamlit.app/#exportador-de-admision-moodle"
 st.sidebar.markdown(
@@ -306,8 +358,9 @@ custom_local_map = parse_custom_local_map(custom_local_text)
 
 # Plantillas
 st.subheader("📥 Descargar plantillas")
-# Mínima
-plantilla_min = pd.DataFrame(columns=REQUERIDAS)
+
+# 1) Mínima (solo obligatorias)
+plantilla_min = pd.DataFrame(columns=["DOCENTE","DIA","HORA INICIO","HORA FIN"])
 buf_min = io.BytesIO()
 with pd.ExcelWriter(buf_min, engine='openpyxl') as w:
     plantilla_min.to_excel(w, index=False, sheet_name="Plantilla")
@@ -315,19 +368,23 @@ st.download_button("📄 Descargar plantilla mínima", data=buf_min.getvalue(),
                    file_name="plantilla_minima.xlsx",
                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
-# COMPLETA (NUEVA)
+# 2) Completa (20 encabezados como en la salida)
 plantilla_full_cols = [
     "DOCENTE","DIA","HORA INICIO","HORA FIN",
-    "PLAN","COD_PLAN","COD_CURSO","CURSO","SECCION",
-    "FACULTAD","ESCUELA","MODALIDAD","LOCAL",
-    "DNI_DOC","DURACION"
+    "FACULTAD","ESCUELA","COD_PLAN","COD_CURSO","SECCION","CURSO",
+    "MODALIDAD","LOCAL","DNI_DOC","DURACION",
+    "GRUPO","TEMA_ZOOM","Zoom asignado","DIA_NUM","RANGO HORARIO","DETALLE HORARIO"
 ]
-plantilla_full = pd.DataFrame(columns=plantilla_full_cols)
+fila_demo = {c:"" for c in plantilla_full_cols}
+for c in ["GRUPO","TEMA_ZOOM","Zoom asignado","DIA_NUM","RANGO HORARIO","DETALLE HORARIO"]:
+    fila_demo[c] = "AUTOGENERADO (no editar)"
+plantilla_full = pd.DataFrame([fila_demo], columns=plantilla_full_cols)
+
 buf_full = io.BytesIO()
 with pd.ExcelWriter(buf_full, engine='openpyxl') as w:
     plantilla_full.to_excel(w, index=False, sheet_name="Plantilla")
-st.download_button("📄 Descargar plantilla completa (nueva)", data=buf_full.getvalue(),
-                   file_name="plantilla_completa.xlsx",
+st.download_button("📄 Descargar plantilla completa (20 columnas)", data=buf_full.getvalue(),
+                   file_name="plantilla_completa_20.xlsx",
                    mime="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
 
 # Subida
@@ -348,7 +405,7 @@ if archivo is not None and st.button("🚀 Asignar Zoom y Descargar"):
         st.error("Faltan columnas obligatorias: " + ", ".join(faltantes))
         st.stop()
 
-    # DIA a número
+    # DIA a número (para la lógica)
     df["DIA"] = df["DIA"].apply(parse_dia_to_num)
     if df["DIA"].isna().any():
         st.error("Hay filas con DIA inválido. Acepta 1-7, LU..DO o LUNES..DOMINGO.")
@@ -362,15 +419,16 @@ if archivo is not None and st.button("🚀 Asignar Zoom y Descargar"):
         st.error(f"Formato de hora no reconocido: {e}")
         st.stop()
 
-    # Asignar zooms
+    # Asignación
     df_asig = asignar_zoom(df, margen_minutos, max_reuniones, prefijo_correo)
 
-    # Export transform (agrega GRUPO, RANGO, TEMA_ZOOM, normaliza columnas)
+    # Export transform
     df_export = convertir_a_excel_export(df_asig, custom_local_map)
 
     # Resumen
     df_resumen = generar_resumen(df_asig)
 
+    # Mostrar
     st.success("✅ Procesamiento completado")
     st.subheader("👩‍🏫 Horarios (con GRUPO y TEMA_ZOOM)")
     st.dataframe(df_export, use_container_width=True)
@@ -383,7 +441,6 @@ if archivo is not None and st.button("🚀 Asignar Zoom y Descargar"):
     with pd.ExcelWriter(out, engine='openpyxl') as w:
         df_export.to_excel(w, sheet_name="Horarios", index=False)
         df_resumen.to_excel(w, sheet_name="Resumen", index=False)
-
     st.download_button("💾 Descargar archivo Excel",
                        data=out.getvalue(),
                        file_name="horario_con_zoom.xlsx",
